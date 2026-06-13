@@ -53,7 +53,7 @@ function seedAdmin(): UserRow {
 }
 
 function installDbMocks(): void {
-  vi.mocked(queryRead).mockImplementation(async (sql: string, params?: unknown[]) => {
+  const handleReadQuery = async (sql: string, params?: unknown[]) => {
     if (sql.includes('FROM users WHERE email')) {
       const email = (params?.[0] as string).toLowerCase();
       const user = usersByEmail.get(email);
@@ -79,9 +79,15 @@ function installDbMocks(): void {
     }
 
     return { rows: [], rowCount: 0 };
-  });
+  };
+
+  vi.mocked(queryRead).mockImplementation(handleReadQuery);
 
   vi.mocked(queryWrite).mockImplementation(async (sql: string, params?: unknown[]) => {
+    if (sql.trimStart().startsWith('SELECT')) {
+      return handleReadQuery(sql, params);
+    }
+
     if (sql.includes('INSERT INTO users')) {
       const user: UserRow = {
         id: crypto.randomUUID(),
@@ -144,14 +150,32 @@ function installDbMocks(): void {
 
 const mockVerifyIdToken = vi.fn();
 
+const { mockSendMail } = vi.hoisted(() => ({
+  mockSendMail: vi.fn().mockResolvedValue({ messageId: 'test-message-id' }),
+}));
+
 vi.mock('google-auth-library', () => ({
   OAuth2Client: vi.fn().mockImplementation(() => ({
     verifyIdToken: mockVerifyIdToken,
   })),
 }));
 
-const env = loadEnv();
-const logger = createLogger({ ...env, LOG_LEVEL: 'silent', GOOGLE_CLIENT_ID: 'test-google-client' });
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn(() => ({
+      sendMail: mockSendMail,
+    })),
+  },
+}));
+
+const baseEnv = loadEnv();
+const env = {
+  ...baseEnv,
+  LOG_LEVEL: 'silent' as const,
+  GOOGLE_CLIENT_ID: 'test-google-client',
+  EMAIL_PROVIDER: 'console' as const,
+};
+const logger = createLogger(env);
 const app = createApp(env, logger);
 
 describe('Auth routes', () => {
@@ -401,5 +425,55 @@ describe('Auth routes', () => {
     const user = usersByEmail.get('google@example.com');
     expect(user?.google_id).toBe('google-user-123');
     expect(user?.email_verified_at).not.toBeNull();
+  });
+});
+
+describe('Auth email (SMTP)', () => {
+  beforeEach(() => {
+    users.clear();
+    usersByEmail.clear();
+    verificationTokens.clear();
+    resetMockRedisStore();
+    installDbMocks();
+    mockSendMail.mockClear();
+    seedAdmin();
+  });
+
+  it('POST /auth/signup with EMAIL_PROVIDER=smtp sends verification email via nodemailer', async () => {
+    const { resetEmailTransportForTests } = await import('../src/auth/email.js');
+    resetEmailTransportForTests();
+
+    const smtpEnv = {
+      ...env,
+      EMAIL_PROVIDER: 'smtp' as const,
+      SMTP_HOST: 'localhost',
+      SMTP_PORT: 1025,
+      APP_URL: 'http://localhost:3000',
+      EMAIL_FROM: 'noreply@arekta.local',
+    };
+    const smtpApp = createApp(smtpEnv, logger);
+
+    const response = await request(smtpApp).post('/auth/signup').send({
+      email: 'smtp-user@example.com',
+      password: 'password123',
+      name: 'SMTP User',
+    });
+
+    expect(response.status).toBe(201);
+    expect(mockSendMail).toHaveBeenCalledOnce();
+
+    const mailOptions = mockSendMail.mock.calls[0]?.[0] as {
+      from: string;
+      to: string;
+      subject: string;
+      text: string;
+      html: string;
+    };
+
+    expect(mailOptions.from).toBe('noreply@arekta.local');
+    expect(mailOptions.to).toBe('smtp-user@example.com');
+    expect(mailOptions.subject).toContain('Verify');
+    expect(mailOptions.text).toContain('http://localhost:3000/auth/verify-email?token=');
+    expect(mailOptions.html).toContain('http://localhost:3000/auth/verify-email?token=');
   });
 });

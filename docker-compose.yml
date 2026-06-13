@@ -191,6 +191,14 @@ services:
       timeout: 3s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - arekta-net
+
   api:
     build:
       context: .
@@ -207,8 +215,18 @@ services:
       DATABASE_REPLICA_1_URL: postgresql://app:app@postgres-replica-1:5432/arekta
       DATABASE_REPLICA_2_URL: postgresql://app:app@postgres-replica-2:5432/arekta
       REDIS_URL: redis://redis:6379
+      EMAIL_PROVIDER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@arekta.local}
+      APP_URL: ${APP_URL:-http://localhost:3000}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: api
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
     ports:
       - "3000:3000"
     networks:
@@ -222,6 +240,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_started
       otel-collector:
         condition: service_started
 

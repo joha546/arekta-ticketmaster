@@ -23,8 +23,15 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().default(''),
   GOOGLE_CLIENT_SECRET: z.string().default(''),
   EMAIL_FROM: z.string().default('noreply@arekta.local'),
-  EMAIL_PROVIDER: z.enum(['console', 'sendgrid', 'ses']).default('console'),
-  SENDGRID_API_KEY: z.string().default(''),
+  EMAIL_PROVIDER: z.enum(['console', 'smtp']).default('console'),
+  SMTP_HOST: z.string().default('localhost'),
+  SMTP_PORT: z.coerce.number().default(1025),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   APP_URL: z.string().default('http://localhost:3000'),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
   OTEL_SERVICE_NAME: z.string().default('api'),

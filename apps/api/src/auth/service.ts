@@ -143,7 +143,7 @@ export function createAuthService(env: Env, logger: pino.Logger) {
 
   /** Re-sends the verification email for an authenticated, unverified user. */
   async function resendVerification(userId: string): Promise<{ message: string }> {
-    const user = await authRepo.findById(userId);
+    const user = await authRepo.findByIdFromPrimary(userId);
     if (!user) {
       throw new AppError('User not found', 404, 'NOT_FOUND');
     }

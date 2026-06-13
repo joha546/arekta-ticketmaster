@@ -43,6 +43,7 @@ Wait for all services to become healthy (replicas can take 1–2 minutes on firs
 | Prometheus | http://localhost:9090 |
 | Kibana | http://localhost:5601 |
 | Elasticsearch | http://localhost:9200 |
+| Mailpit (dev email) | http://localhost:8025 |
 
 ### Dev mode (hot reload)
 

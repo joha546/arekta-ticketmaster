@@ -7,7 +7,7 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "docker:up": "docker compose up -d --build",
+    "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
     "deploy:check": "bash scripts/deploy-check.sh"

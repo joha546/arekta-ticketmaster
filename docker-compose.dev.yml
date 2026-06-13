@@ -5,14 +5,17 @@ services:
       dockerfile: apps/api/Dockerfile
       target: deps
     working_dir: /app
-    command: sh -c "pnpm install && pnpm --filter @repo/shared build && pnpm --filter api dev"
+    command: sh -c "CI=true pnpm install --frozen-lockfile && pnpm --filter @repo/shared build && pnpm --filter api dev"
     volumes:
       - .:/app
       - api_node_modules:/app/node_modules
-      - api_app_node_modules:/app/apps/api/node_modules
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
 
   web:
     build:
@@ -20,11 +23,10 @@ services:
       dockerfile: apps/web/Dockerfile
       target: deps
     working_dir: /app
-    command: sh -c "pnpm install && pnpm --filter @repo/shared build && pnpm --filter web dev --host 0.0.0.0 --port 5173"
+    command: sh -c "CI=true pnpm install --frozen-lockfile && pnpm --filter @repo/shared build && pnpm --filter web dev --host 0.0.0.0 --port 5173"
     volumes:
       - .:/app
       - web_node_modules:/app/node_modules
-      - web_app_node_modules:/app/apps/web/node_modules
     ports:
       - "5173:5173"
     environment:
@@ -32,6 +34,4 @@ services:
 
 volumes:
   api_node_modules:
-  api_app_node_modules:
   web_node_modules:
-  web_app_node_modules:

@@ -98,6 +98,20 @@ export async function findById(id: string): Promise<AuthUserRecord | null> {
   return row ? mapUser(row) : null;
 }
 
+/**
+ * Loads a user from the primary DB — use when read-your-writes matters (e.g. right after verify).
+ */
+export async function findByIdFromPrimary(id: string): Promise<AuthUserRecord | null> {
+  const result = await queryWrite<UserRow>(
+    `SELECT id, email, password_hash, name, role, email_verified_at, google_id
+     FROM users WHERE id = $1`,
+    [id],
+  );
+
+  const row = result.rows[0];
+  return row ? mapUser(row) : null;
+}
+
 /** Marks a user's email as verified and clears outstanding verification tokens. */
 export async function setVerified(userId: string): Promise<void> {
   await queryWrite(
@@ -137,7 +151,8 @@ export async function findVerificationToken(
   rawToken: string,
 ): Promise<{ userId: string; expired: boolean } | null> {
   const tokenHash = hashToken(rawToken);
-  const result = await queryRead<VerificationTokenRow>(
+  // Must read from primary: token is written there on signup/resend; replicas may lag.
+  const result = await queryWrite<VerificationTokenRow>(
     `SELECT id, user_id, token_hash, expires_at
      FROM email_verification_tokens WHERE token_hash = $1`,
     [tokenHash],
