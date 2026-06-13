@@ -147,14 +147,76 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@arekta.local\",\n  \"password\": \"CHANGE_ME_SEED_PASSWORD\"\n}"
+              "raw": "{\n  \"email\": \"admin@arekta.local\",\n  \"password\": \"Admin123!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "login"]
             },
-            "description": "Update password to match 0003_seed.sql"
+            "description": "Seed admin password from 0003_seed.sql"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Resend Verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/resend-verification",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "resend-verification"]
+            },
+            "description": "Requires unverified user Bearer token — check API logs for verification link"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Verify Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-email?token=PASTE_TOKEN_FROM_LOGS",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "verify-email"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "PASTE_TOKEN_FROM_LOGS"
+                }
+              ]
+            },
+            "description": "Paste token from signup/resend verification console log"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Google Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"GOOGLE_ID_TOKEN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/google",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "google"]
+            },
+            "description": "Requires valid Google OAuth idToken when GOOGLE_CLIENT_ID is configured"
           },
           "response": []
         },

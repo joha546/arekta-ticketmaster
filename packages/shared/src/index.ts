@@ -45,3 +45,35 @@ export function paginatedResponseSchema<T extends z.ZodTypeAny>(itemSchema: T) {
 export const userRoleSchema = z.enum(['admin', 'user']);
 
 export type UserRole = z.infer<typeof userRoleSchema>;
+
+/** Public user object returned by auth endpoints. */
+export const authUserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string(),
+  role: userRoleSchema,
+  emailVerified: z.boolean(),
+});
+
+export type AuthUser = z.infer<typeof authUserSchema>;
+
+export const signupRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().min(1).max(255),
+});
+
+export type SignupRequest = z.infer<typeof signupRequestSchema>;
+
+export const loginRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export type LoginRequest = z.infer<typeof loginRequestSchema>;
+
+export const googleAuthRequestSchema = z.object({
+  idToken: z.string().min(1),
+});
+
+export type GoogleAuthRequest = z.infer<typeof googleAuthRequestSchema>;

@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import type { Env } from '../config/env.js';
-import { resolvePemValue } from '../config/pem.js';
+import { verifyAccessToken as verifyToken } from '../auth/jwt.js';
 import { AppError } from '../errors/AppError.js';
 
+/** Authenticated principal attached to the request by requireAuth / optionalAuth. */
 export type AuthUser = {
   id: string;
   email: string;
@@ -14,25 +14,8 @@ export type AuthRequest = Request & {
   user?: AuthUser;
 };
 
-type JwtPayload = {
-  sub: string;
-  email: string;
-  role: 'admin' | 'user';
-};
-
-function normalizePemKey(key: string): string {
-  return resolvePemValue(key);
-}
-
 export function verifyAccessToken(token: string, env: Env): AuthUser {
-  const publicKey = normalizePemKey(env.JWT_PUBLIC_KEY);
-  const payload = jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as JwtPayload;
-
-  return {
-    id: payload.sub,
-    email: payload.email,
-    role: payload.role,
-  };
+  return verifyToken(token, env);
 }
 
 function extractBearerToken(req: Request): string | null {

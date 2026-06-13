@@ -1,3 +1,4 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Router, type Express } from 'express';
 import type pino from 'pino';
@@ -22,8 +23,9 @@ export function createApp(env: Env, logger: pino.Logger): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(cors({ origin: env.CORS_ORIGIN }));
+  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(express.json());
+  app.use(cookieParser());
   app.use(requestId());
   app.use(traceContext());
   app.use(loggerMiddleware(logger));
@@ -34,7 +36,7 @@ export function createApp(env: Env, logger: pino.Logger): Express {
 
   app.use(createHealthRouter(logger));
 
-  app.use('/auth', createAuthRouter());
+  app.use('/auth', createAuthRouter(env, logger));
   app.use('/genres', createGenresRouter());
   app.use('/movies', createMoviesRouter());
   app.use('/showtimes', createShowtimesRouter());
