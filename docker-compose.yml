@@ -1,0 +1,237 @@
+x-postgres-env: &postgres-env
+  POSTGRES_USER: app
+  POSTGRES_PASSWORD: app
+  POSTGRES_DB: arekta
+
+x-logging-labels: &logging-labels
+  logging: "true"
+
+services:
+  postgres-primary:
+    image: postgres:16-alpine
+    environment:
+      <<: *postgres-env
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    volumes:
+      - postgres_primary_data:/var/lib/postgresql/data
+      - ./docker/postgres/primary/init:/docker-entrypoint-initdb.d:ro
+      - ./docker/postgres/primary/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./docker/postgres/primary/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - arekta-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d arekta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-replica-1:
+    image: postgres:16-alpine
+    environment:
+      <<: *postgres-env
+      PRIMARY_HOST: postgres-primary
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - postgres_replica_1_data:/var/lib/postgresql/data
+      - ./docker/postgres/replica/entrypoint.sh:/entrypoint.sh:ro
+      - ./docker/postgres/replica/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    ports:
+      - "5433:5432"
+    networks:
+      - arekta-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U app -d arekta && psql -U app -d arekta -tAc \"SELECT pg_is_in_recovery()\" | grep -q t",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-replica-2:
+    image: postgres:16-alpine
+    environment:
+      <<: *postgres-env
+      PRIMARY_HOST: postgres-primary
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - postgres_replica_2_data:/var/lib/postgresql/data
+      - ./docker/postgres/replica/entrypoint.sh:/entrypoint.sh:ro
+      - ./docker/postgres/replica/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    ports:
+      - "5434:5432"
+    networks:
+      - arekta-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U app -d arekta && psql -U app -d arekta -tAc \"SELECT pg_is_in_recovery()\" | grep -q t",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./docker/otel/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    networks:
+      - arekta-net
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.69.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    networks:
+      - arekta-net
+
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - arekta-net
+    depends_on:
+      - otel-collector
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.2
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - arekta-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.18.2
+    volumes:
+      - ./docker/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5044:5044"
+    networks:
+      - arekta-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.18.2
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - arekta-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.18.2
+    user: root
+    volumes:
+      - ./docker/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - arekta-net
+    depends_on:
+      - logstash
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    labels:
+      <<: *logging-labels
+      com.docker.compose.service: api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: info
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8088}
+      DATABASE_PRIMARY_URL: postgresql://app:app@postgres-primary:5432/arekta
+      DATABASE_REPLICA_1_URL: postgresql://app:app@postgres-replica-1:5432/arekta
+      DATABASE_REPLICA_2_URL: postgresql://app:app@postgres-replica-2:5432/arekta
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: api
+    ports:
+      - "3000:3000"
+    networks:
+      - arekta-net
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-replica-1:
+        condition: service_healthy
+      postgres-replica-2:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE: /api
+    labels:
+      <<: *logging-labels
+      com.docker.compose.service: web
+    ports:
+      - "${WEB_PORT:-8088}:8080"
+    networks:
+      - arekta-net
+    depends_on:
+      - api
+
+networks:
+  arekta-net:
+    driver: bridge
+
+volumes:
+  postgres_primary_data:
+  postgres_replica_1_data:
+  postgres_replica_2_data:
+  elasticsearch_data:

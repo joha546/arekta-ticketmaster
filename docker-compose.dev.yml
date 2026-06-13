@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: deps
+    working_dir: /app
+    command: sh -c "pnpm install && pnpm --filter @repo/shared build && pnpm --filter api dev"
+    volumes:
+      - .:/app
+      - api_node_modules:/app/node_modules
+      - api_app_node_modules:/app/apps/api/node_modules
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: deps
+    working_dir: /app
+    command: sh -c "pnpm install && pnpm --filter @repo/shared build && pnpm --filter web dev --host 0.0.0.0 --port 5173"
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_app_node_modules:/app/apps/web/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://api:3000
+
+volumes:
+  api_node_modules:
+  api_app_node_modules:
+  web_node_modules:
+  web_app_node_modules:
