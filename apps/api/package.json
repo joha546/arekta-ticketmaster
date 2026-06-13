@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node --import ./dist/instrumentation.js dist/index.js",
     "test": "vitest run",
+    "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.drizzle.json",
     "lint": "eslint src/ tests/",

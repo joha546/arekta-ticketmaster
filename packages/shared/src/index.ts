@@ -77,3 +77,19 @@ export const googleAuthRequestSchema = z.object({
 });
 
 export type GoogleAuthRequest = z.infer<typeof googleAuthRequestSchema>;
+
+/** Single genre reference row (seed data — read-only in Phase 1). */
+export const genreSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+export type Genre = z.infer<typeof genreSchema>;
+
+/** Response shape for GET /genres. */
+export const genresResponseSchema = z.object({
+  genres: z.array(genreSchema),
+});
+
+export type GenresResponse = z.infer<typeof genresResponseSchema>;

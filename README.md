@@ -84,6 +84,13 @@ pnpm deploy:check               # lint + typecheck + test + build
 - `GET /ready` → 200/503 based on DB health
 - 404/400/500 error shapes
 - Request ID header propagation
+- `GET /genres` → 200, seeded genre list (unit tests mock DB)
+
+**Integration tests** (`apps/api/tests/integration/`) query the real database and require migrated seed data. They run automatically with `pnpm --filter api test` when Postgres is available. Skip them in CI or environments without a database:
+
+```bash
+INTEGRATION_TEST=0 pnpm --filter api test
+```
 
 ## Architecture
 

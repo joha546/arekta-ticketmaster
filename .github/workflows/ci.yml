@@ -41,6 +41,8 @@ jobs:
 
       - name: Test
         run: pnpm test
+        env:
+          INTEGRATION_TEST: '0'
 
       - name: Build
         run: pnpm build

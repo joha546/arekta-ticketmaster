@@ -3,7 +3,7 @@ set -euo pipefail
 
 pnpm lint
 pnpm typecheck
-pnpm test
+INTEGRATION_TEST=0 pnpm test
 pnpm build
 
 echo "Deploy check passed."
