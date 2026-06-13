@@ -122,6 +122,18 @@ WEB_PORT=8090 pnpm docker:up
 
 Default web port is **8088** (not 8080) to reduce conflicts with other local dev servers.
 
+### Port already in use (6379 / Redis)
+
+Another Redis (or service) is bound to 6379. The compose file maps Redis to host port **6380** by default:
+
+```bash
+ss -tlnp | grep 6379
+# or override the host port:
+REDIS_PORT=6381 pnpm docker:up
+```
+
+Set `REDIS_URL=redis://localhost:6380` in `.env` when connecting from the host (e.g. `pnpm --filter api dev`).
+
 ### Replicas not ready
 
 Replicas run `pg_basebackup` on first start. Check logs:
@@ -167,6 +179,17 @@ pnpm docker:down   # removes volumes
 pnpm docker:up
 ```
 
+## TDD implementation workflow
+
+Movie reservation features are built **one API module at a time** using test-driven development:
+
+1. Read the current phase plan in local `Phases/` (gitignored — personal workflow docs)
+2. Write failing tests → implement → `pnpm --filter api test`
+3. Verify with Postman: import [`postman/arekta-ticketmaster.postman_collection.json`](postman/arekta-ticketmaster.postman_collection.json)
+4. Run `pnpm deploy:check`, then commit and push before starting the next module
+
+Module order: Foundation → Auth → Genres → Movies → Showtimes → Seats → Reservations → Payments → Notifications → Admin → Web UI.
+
 ## Project structure
 
 ```
@@ -174,6 +197,8 @@ apps/api/          Express API
 apps/web/          React frontend
 packages/shared/   Shared types (Zod schemas)
 docker/            Postgres, OTel, Prometheus, ELK configs
+postman/           Postman collection (versioned)
+Phases/            Local TDD phase plans (gitignored)
 ```
 
 ## Notes

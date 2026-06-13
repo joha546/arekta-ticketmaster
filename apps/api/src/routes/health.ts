@@ -41,37 +41,6 @@ export function createHealthRouter(logger: pino.Logger): ExpressRouter {
     }
   });
 
-  router.get('/events', async (_req, res, next) => {
-    try {
-      const { queryRead } = await import('../db/pools.js');
-      const result = await queryRead<{ id: number; name: string; venue: string }>(
-        'SELECT id, name, venue FROM events ORDER BY id DESC LIMIT 10',
-      );
-      res.json({ events: result.rows });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/events', async (req, res, next) => {
-    try {
-      const { name, venue } = req.body as { name?: string; venue?: string };
-      if (!name || !venue) {
-        throw new AppError('name and venue are required', 400, 'VALIDATION_ERROR');
-      }
-
-      const { queryWrite } = await import('../db/pools.js');
-      const result = await queryWrite<{ id: number; name: string; venue: string }>(
-        'INSERT INTO events (name, venue) VALUES ($1, $2) RETURNING id, name, venue',
-        [name, venue],
-      );
-
-      res.status(201).json({ event: result.rows[0] });
-    } catch (error) {
-      next(error);
-    }
-  });
-
   router.get('/debug/error', () => {
     throw new Error('Unhandled test error');
   });

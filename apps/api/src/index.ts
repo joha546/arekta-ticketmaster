@@ -5,6 +5,7 @@ import { initPools } from './db/pools.js';
 import { initInstrumentation, shutdownInstrumentation } from './instrumentation.js';
 import { createLogger } from './middleware/logger.js';
 import { createApp } from './app.js';
+import { closeRedis } from './redis/client.js';
 
 loadDotenv();
 initInstrumentation();
@@ -24,6 +25,7 @@ async function shutdown(signal: string) {
   server.close(async () => {
     const { closePools } = await import('./db/pools.js');
     await closePools();
+    await closeRedis();
     await shutdownInstrumentation();
     process.exit(0);
   });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolvePemValue } from './pem.js';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -14,6 +15,9 @@ const envSchema = z.object({
   DATABASE_REPLICA_2_URL: z
     .string()
     .default('postgresql://app:app@localhost:5434/arekta'),
+  REDIS_URL: z.string().default('redis://localhost:6380'),
+  JWT_PUBLIC_KEY: z.string().default(''),
+  JWT_PRIVATE_KEY: z.string().default(''),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
   OTEL_SERVICE_NAME: z.string().default('api'),
 });
@@ -21,5 +25,10 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 export function loadEnv(): Env {
-  return envSchema.parse(process.env);
+  const parsed = envSchema.parse(process.env);
+  return {
+    ...parsed,
+    JWT_PUBLIC_KEY: resolvePemValue(parsed.JWT_PUBLIC_KEY),
+    JWT_PRIVATE_KEY: resolvePemValue(parsed.JWT_PRIVATE_KEY),
+  };
 }
