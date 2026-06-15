@@ -93,3 +93,85 @@ export const genresResponseSchema = z.object({
 });
 
 export type GenresResponse = z.infer<typeof genresResponseSchema>;
+
+/** Core movie fields exposed by public browse and detail endpoints. */
+export const movieSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  description: z.string().nullable(),
+  posterUrl: z.string().nullable(),
+  runtimeMinutes: z.number(),
+});
+
+export type Movie = z.infer<typeof movieSchema>;
+
+/** Movie row in list responses — includes associated genres for browse cards. */
+export const movieListItemSchema = movieSchema.extend({
+  genres: z.array(genreSchema),
+});
+
+export type MovieListItem = z.infer<typeof movieListItemSchema>;
+
+/** Query params for GET /movies — all filters optional except pagination defaults. */
+export const moviesListQuerySchema = z.object({
+  genre: z.string().optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD')
+    .optional(),
+  search: z.string().optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
+  sort: z.enum(['title', 'newest']).default('newest'),
+});
+
+export type MoviesListQuery = z.infer<typeof moviesListQuerySchema>;
+
+/** Response shape for GET /movies. */
+export const moviesListResponseSchema = z.object({
+  movies: z.array(movieListItemSchema),
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+});
+
+export type MoviesListResponse = z.infer<typeof moviesListResponseSchema>;
+
+/** Response shape for GET /movies/:id. */
+export const movieDetailResponseSchema = z.object({
+  movie: movieSchema,
+  genres: z.array(genreSchema),
+  upcomingShowtimes: z.array(z.unknown()),
+});
+
+export type MovieDetailResponse = z.infer<typeof movieDetailResponseSchema>;
+
+/** Request body for POST /movies and PUT /movies/:id (partial on update). */
+export const createMovieRequestSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(5000).optional(),
+  runtimeMinutes: z.number().int().min(1).max(600),
+  genreIds: z.array(z.number().int().positive()).min(1),
+  posterUrl: z.string().url().optional(),
+});
+
+export type CreateMovieRequest = z.infer<typeof createMovieRequestSchema>;
+
+export const updateMovieRequestSchema = createMovieRequestSchema.partial();
+
+export type UpdateMovieRequest = z.infer<typeof updateMovieRequestSchema>;
+
+/** Response after creating or updating a movie (admin). */
+export const movieMutationResponseSchema = z.object({
+  movie: movieSchema,
+  genres: z.array(genreSchema),
+});
+
+export type MovieMutationResponse = z.infer<typeof movieMutationResponseSchema>;
+
+/** Response from POST /admin/uploads/poster. */
+export const posterUploadResponseSchema = z.object({
+  posterUrl: z.string().url(),
+});
+
+export type PosterUploadResponse = z.infer<typeof posterUploadResponseSchema>;

@@ -38,12 +38,12 @@ export function createApp(env: Env, logger: pino.Logger): Express {
 
   app.use('/auth', createAuthRouter(env, logger));
   app.use('/genres', createGenresRouter());
-  app.use('/movies', createMoviesRouter());
+  app.use('/movies', createMoviesRouter(env));
   app.use('/showtimes', createShowtimesRouter());
   app.use('/seats', createSeatsRouter());
   app.use('/reservations', createReservationsRouter());
   app.use('/payments', createPaymentsRouter());
-  app.use('/admin', createAdminRouter());
+  app.use('/admin', createAdminRouter(env));
 
   if (env.NODE_ENV !== 'production') {
     const debugRouter = Router();

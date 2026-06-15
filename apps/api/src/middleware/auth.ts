@@ -3,6 +3,8 @@ import type { Env } from '../config/env.js';
 import { verifyAccessToken as verifyToken } from '../auth/jwt.js';
 import { AppError } from '../errors/AppError.js';
 
+import type { File } from 'multer';
+
 /** Authenticated principal attached to the request by requireAuth / optionalAuth. */
 export type AuthUser = {
   id: string;
@@ -12,6 +14,7 @@ export type AuthUser = {
 
 export type AuthRequest = Request & {
   user?: AuthUser;
+  file?: File;
 };
 
 export function verifyAccessToken(token: string, env: Env): AuthUser {

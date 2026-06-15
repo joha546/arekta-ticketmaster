@@ -7,9 +7,10 @@ import { closePools, initPools } from '../../src/db/pools.js';
  * Unit tests use mocked pools via tests/setup.ts; this file runs only in the
  * integration Vitest project (see vitest.config.ts).
  *
- * Set INTEGRATION_TEST=0 to skip integration specs (e.g. CI without a database).
+ * Set INTEGRATION_TEST=1 to run integration specs against a migrated database.
+ * Default `pnpm test` sets INTEGRATION_TEST=0 (unit tests only).
  */
-export const skipIntegration = process.env.INTEGRATION_TEST === '0';
+export const skipIntegration = process.env.INTEGRATION_TEST !== '1';
 
 beforeAll(async () => {
   if (skipIntegration) {

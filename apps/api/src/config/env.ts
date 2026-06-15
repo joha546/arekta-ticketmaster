@@ -33,6 +33,7 @@ const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
   APP_URL: z.string().default('http://localhost:3000'),
+  IMGBB_API_KEY: z.string().default(''),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
   OTEL_SERVICE_NAME: z.string().default('api'),
 });

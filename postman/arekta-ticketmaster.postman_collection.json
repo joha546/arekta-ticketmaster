@@ -356,6 +356,125 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "GET Movies Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/movies?search=inception",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies"],
+              "query": [{ "key": "search", "value": "inception" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Movies Filter by Genre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/movies?genre=action",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies"],
+              "query": [{ "key": "genre", "value": "action" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Upload Poster (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.posterUrl) pm.collectionVariables.set('posterUrl', json.posterUrl);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/uploads/poster",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "uploads", "poster"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Update Movie (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Inception (Updated)\",\n  \"genreIds\": [1, 8]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/movies/{{movieId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies", "{{movieId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Soft Delete Movie (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/movies/{{movieId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies", "{{movieId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Create Movie as User (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Should Fail\",\n  \"runtimeMinutes\": 90,\n  \"genreIds\": [1]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/movies",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies"]
+            },
+            "description": "Use a regular user access token — expect 403 Forbidden."
+          },
+          "response": []
         }
       ]
     },
