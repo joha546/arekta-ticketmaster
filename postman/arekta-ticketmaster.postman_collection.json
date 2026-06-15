@@ -45,6 +45,21 @@
       "key": "idempotencyKey",
       "value": "postman-test-001",
       "type": "string"
+    },
+    {
+      "key": "showtimeDate",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "showtimeStart",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "showtimeStartGap",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -480,18 +495,70 @@
     },
     {
       "name": "04 Showtimes",
-      "description": "Phase 04",
+      "description": "Phase 04 — run \"0. Reset Showtime Test Slots\" first when re-testing. SCHEDULE_CONFLICT on create means that slot already exists.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "if (!pm.collectionVariables.get('showtimeStart')) {",
+              "  const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);",
+              "  start.setUTCSeconds(0, 0);",
+              "  const gap = new Date(start.getTime() + 4 * 60 * 60 * 1000);",
+              "  pm.collectionVariables.set('showtimeDate', start.toISOString().slice(0, 10));",
+              "  pm.collectionVariables.set('showtimeStart', start.toISOString());",
+              "  pm.collectionVariables.set('showtimeStartGap', gap.toISOString());",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
       "item": [
+        {
+          "name": "0. Reset Showtime Test Slots",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.unset('showtimeStart');",
+                  "pm.collectionVariables.unset('showtimeDate');",
+                  "pm.collectionVariables.unset('showtimeStartGap');",
+                  "const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);",
+                  "start.setUTCSeconds(0, 0);",
+                  "const gap = new Date(start.getTime() + 4 * 60 * 60 * 1000);",
+                  "pm.collectionVariables.set('showtimeDate', start.toISOString().slice(0, 10));",
+                  "pm.collectionVariables.set('showtimeStart', start.toISOString());",
+                  "pm.collectionVariables.set('showtimeStartGap', gap.toISOString());",
+                  "console.log('Showtime slots reset:', pm.collectionVariables.get('showtimeStart'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Clears showtimeStart/showtimeDate and picks a fresh slot ~7 days ahead. Run this before re-testing the folder."
+          },
+          "response": []
+        },
         {
           "name": "GET Showtimes by Date",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/movies/{{movieId}}/showtimes?date=2025-06-13",
+              "raw": "{{baseUrl}}/movies/{{movieId}}/showtimes?date={{showtimeDate}}",
               "host": ["{{baseUrl}}"],
               "path": ["movies", "{{movieId}}", "showtimes"],
-              "query": [{ "key": "date", "value": "2025-06-13" }]
+              "query": [{ "key": "date", "value": "{{showtimeDate}}" }]
             }
           },
           "response": []
@@ -505,8 +572,12 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "  const json = pm.response.json();",
-                  "  const id = json.showtime?.id || json.id;",
+                  "  const id = json.showtime?.id;",
                   "  if (id) pm.collectionVariables.set('showtimeId', id);",
+                  "} else if (pm.response.code === 409) {",
+                  "  pm.test('Showtime already exists at this slot (use 0. Reset or Cancel first)', function () {",
+                  "    pm.expect(pm.response.json().error.code).to.eql('SCHEDULE_CONFLICT');",
+                  "  });",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -521,19 +592,33 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"2025-06-13T18:00:00.000Z\",\n  \"priceCents\": 1200\n}"
+              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"{{showtimeStart}}\",\n  \"priceCents\": 1200\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/showtimes",
               "host": ["{{baseUrl}}"],
               "path": ["showtimes"]
             },
-            "description": "Create first showtime — saves showtimeId"
+            "description": "Create first showtime — saves showtimeId. If you get 409, that slot already exists (see upcomingShowtimes on GET movie detail); run \"0. Reset\" or cancel the existing showtime first."
           },
           "response": []
         },
         {
           "name": "POST Create Conflicting Showtime (expect 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('duplicate slot returns SCHEDULE_CONFLICT', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('SCHEDULE_CONFLICT');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -542,7 +627,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"2025-06-13T18:00:00.000Z\",\n  \"priceCents\": 1200\n}"
+              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"{{showtimeStart}}\",\n  \"priceCents\": 1200\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/showtimes",
@@ -563,7 +648,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"2025-06-13T22:30:00.000Z\",\n  \"priceCents\": 1200\n}"
+              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"{{showtimeStartGap}}\",\n  \"priceCents\": 1200\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/showtimes",

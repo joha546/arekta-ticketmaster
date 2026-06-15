@@ -61,6 +61,17 @@ function assertWithinAdvanceWindow(startTime: Date): void {
   }
 }
 
+function assertNotInPast(startTime: Date): void {
+  if (startTime.getTime() <= Date.now()) {
+    throw new AppError('Showtime must be scheduled in the future', 400, 'VALIDATION_ERROR');
+  }
+}
+
+function assertValidStartTime(startTime: Date): void {
+  assertNotInPast(startTime);
+  assertWithinAdvanceWindow(startTime);
+}
+
 function computeEndTime(startTime: Date, runtimeMinutes: number): Date {
   return new Date(startTime.getTime() + runtimeMinutes * 60 * 1000);
 }
@@ -96,7 +107,9 @@ export function createShowtimesService() {
     }
 
     const showtimes = await showtimesRepo.listByMovieAndDate(movieId, date);
-    await showtimesCache.setCachedShowtimes(movieId, date, showtimes);
+    if (showtimes.length > 0) {
+      await showtimesCache.setCachedShowtimes(movieId, date, showtimes);
+    }
     return { showtimes: showtimes.map(toApiListItem) };
   }
 
@@ -108,7 +121,7 @@ export function createShowtimesService() {
   async function createShowtime(input: CreateShowtimeInput) {
     const movie = await loadMovieForScheduling(input.movieId);
     const startTime = new Date(input.startTime);
-    assertWithinAdvanceWindow(startTime);
+    assertValidStartTime(startTime);
 
     const endTime = computeEndTime(startTime, movie.runtimeMinutes);
 
@@ -156,7 +169,7 @@ export function createShowtimesService() {
 
     if (input.startTime !== undefined) {
       startTime = new Date(input.startTime);
-      assertWithinAdvanceWindow(startTime);
+      assertValidStartTime(startTime);
       const movie = await loadMovieForScheduling(existing.movieId);
       endTime = computeEndTime(startTime, movie.runtimeMinutes);
     }

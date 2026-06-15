@@ -373,6 +373,62 @@ describe('Showtimes API', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('POST /showtimes with past startTime → 400', async () => {
+    const res = await request(app)
+      .post('/showtimes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        movieId: MOVIE_ID,
+        startTime: '2025-06-13T18:00:00.000Z',
+        priceCents: 1200,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toMatch(/future/i);
+  });
+
+  it('PUT /showtimes/:id rescheduling to past startTime → 400', async () => {
+    showtimes.set(SHOWTIME_ID, {
+      id: SHOWTIME_ID,
+      movie_id: MOVIE_ID,
+      screen_id: 1,
+      start_time: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      end_time: new Date(Date.now() + 26 * 60 * 60 * 1000),
+      price_cents: 1200,
+      status: 'scheduled',
+    });
+
+    const res = await request(app)
+      .put(`/showtimes/${SHOWTIME_ID}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ startTime: '2025-06-13T18:00:00.000Z' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toMatch(/future/i);
+  });
+
+  it('GET /movies/:id includes future showtimes in upcomingShowtimes', async () => {
+    const futureStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    showtimes.set(SHOWTIME_ID, {
+      id: SHOWTIME_ID,
+      movie_id: MOVIE_ID,
+      screen_id: 1,
+      start_time: futureStart,
+      end_time: new Date(futureStart.getTime() + 120 * 60 * 1000),
+      price_cents: 1200,
+      status: 'scheduled',
+    });
+
+    const res = await request(app).get(`/movies/${MOVIE_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.upcomingShowtimes).toHaveLength(1);
+    expect(res.body.upcomingShowtimes[0]?.id).toBe(SHOWTIME_ID);
+    expect(res.body.movie.id).toBe(MOVIE_ID);
+  });
+
   it('POST /showtimes non-admin → 403', async () => {
     const startTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 

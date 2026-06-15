@@ -187,6 +187,11 @@ pnpm docker:down   # removes volumes
 pnpm docker:up
 ```
 
+### Database login
+```bash
+docker compose exec postgres-primary psql -U app -d arekta
+```
+
 ## TDD implementation workflow
 
 Movie reservation features are built **one API module at a time** using test-driven development:
