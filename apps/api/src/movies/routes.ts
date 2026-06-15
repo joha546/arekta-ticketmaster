@@ -2,13 +2,15 @@ import { Router, type Router as ExpressRouter } from 'express';
 import type { Env } from '../config/env.js';
 import { createAuthMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { validateBody, validateQuery, type ValidatedRequest } from '../middleware/validate.js';
-import type { MoviesListQuery } from '@repo/shared';
+import type { MoviesListQuery, ShowtimesByDateQuery } from '@repo/shared';
 import {
   createMovieRequestSchema,
   moviesListQuerySchema,
+  showtimesByDateQuerySchema,
   updateMovieRequestSchema,
 } from './schemas.js';
 import { createMoviesService } from './service.js';
+import { createShowtimesService } from '../showtimes/service.js';
 
 function movieIdParam(id: string | string[] | undefined): string {
   if (typeof id === 'string') {
@@ -27,6 +29,7 @@ function movieIdParam(id: string | string[] | undefined): string {
 export function createMoviesRouter(env: Env): ExpressRouter {
   const router = Router();
   const movies = createMoviesService();
+  const showtimes = createShowtimesService();
   const { requireAuth, requireAdmin } = createAuthMiddleware(env);
 
   /** GET /movies — paginated catalog with optional genre, date, search, and sort filters. */
@@ -47,7 +50,22 @@ export function createMoviesRouter(env: Env): ExpressRouter {
     }
   });
 
-  /** GET /movies/:id — single movie with genres; upcoming showtimes populated in Phase 04. */
+  /** GET /movies/:id/showtimes — public date-filtered showtime list. */
+  router.get(
+    '/:id/showtimes',
+    validateQuery(showtimesByDateQuerySchema),
+    async (req, res, next) => {
+      try {
+        const query = (req as ValidatedRequest<ShowtimesByDateQuery>).validatedQuery;
+        const result = await showtimes.listShowtimesForMovie(movieIdParam(req.params.id), query.date);
+        res.json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  /** GET /movies/:id — single movie with genres and upcoming showtimes. */
   router.get('/:id', async (req, res, next) => {
     try {
       const result = await movies.getMovieById(movieIdParam(req.params.id));

@@ -527,6 +527,69 @@
               "raw": "{{baseUrl}}/showtimes",
               "host": ["{{baseUrl}}"],
               "path": ["showtimes"]
+            },
+            "description": "Create first showtime — saves showtimeId"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Create Conflicting Showtime (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"2025-06-13T18:00:00.000Z\",\n  \"priceCents\": 1200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/showtimes",
+              "host": ["{{baseUrl}}"],
+              "path": ["showtimes"]
+            },
+            "description": "Same slot as first showtime — expect SCHEDULE_CONFLICT"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Create Showtime After Gap (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"movieId\": \"{{movieId}}\",\n  \"startTime\": \"2025-06-13T22:30:00.000Z\",\n  \"priceCents\": 1200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/showtimes",
+              "host": ["{{baseUrl}}"],
+              "path": ["showtimes"]
+            },
+            "description": "15+ minutes after first showtime ends — expect 201"
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Update Showtime Price (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"priceCents\": 1500\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/showtimes/{{showtimeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["showtimes", "{{showtimeId}}"]
             }
           },
           "response": []
@@ -542,7 +605,22 @@
               "raw": "{{baseUrl}}/showtimes/{{showtimeId}}/cancel",
               "host": ["{{baseUrl}}"],
               "path": ["showtimes", "{{showtimeId}}", "cancel"]
-            }
+            },
+            "description": "Soft-cancel showtime — status becomes cancelled"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Movie Detail (upcoming showtimes)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/movies/{{movieId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["movies", "{{movieId}}"]
+            },
+            "description": "Verify upcomingShowtimes array is populated"
           },
           "response": []
         }

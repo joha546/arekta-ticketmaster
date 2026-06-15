@@ -1,4 +1,5 @@
 import { AppError } from '../errors/AppError.js';
+import { createShowtimesService } from '../showtimes/service.js';
 import * as moviesRepo from './repository.js';
 import type { MovieRecord } from './repository.js';
 import type { GenreRecord } from '../genres/repository.js';
@@ -23,6 +24,8 @@ export type UpdateMovieInput = Partial<CreateMovieInput>;
  * Orchestrates repository writes, genre validation, search, and delete guards.
  */
 export function createMoviesService(searchRepo: MovieSearchRepository = new PgMovieSearchRepository()) {
+  const showtimes = createShowtimesService();
+
   /**
    * Public browse endpoint — delegates filtering and pagination to the search repository.
    * Only active movies are returned (enforced in PgMovieSearchRepository).
@@ -34,7 +37,6 @@ export function createMoviesService(searchRepo: MovieSearchRepository = new PgMo
 
   /**
    * Public detail view — returns movie, genres, and upcoming showtimes.
-   * Showtimes are empty until Phase 04 implements the showtimes module.
    */
   async function getMovieById(id: string) {
     const movie = await moviesRepo.findById(id);
@@ -43,7 +45,8 @@ export function createMoviesService(searchRepo: MovieSearchRepository = new PgMo
     }
 
     const genres = await moviesRepo.findGenresByMovieId(id);
-    return { movie, genres, upcomingShowtimes: [] as unknown[] };
+    const upcomingShowtimes = await showtimes.getUpcomingForMovieDetail(id);
+    return { movie, genres, upcomingShowtimes };
   }
 
   /**

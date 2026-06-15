@@ -4,6 +4,7 @@ import {
   movieMutationResponseSchema,
   moviesListQuerySchema,
   moviesListResponseSchema,
+  showtimesByDateQuerySchema,
   updateMovieRequestSchema,
 } from '@repo/shared';
 
@@ -17,5 +18,6 @@ export {
   movieMutationResponseSchema,
   moviesListQuerySchema,
   moviesListResponseSchema,
+  showtimesByDateQuerySchema,
   updateMovieRequestSchema,
 };

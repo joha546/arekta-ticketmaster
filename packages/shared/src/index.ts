@@ -137,11 +137,89 @@ export const moviesListResponseSchema = z.object({
 
 export type MoviesListResponse = z.infer<typeof moviesListResponseSchema>;
 
+export const showtimeStatusSchema = z.enum(['scheduled', 'cancelled', 'completed']);
+
+export type ShowtimeStatus = z.infer<typeof showtimeStatusSchema>;
+
+/** Public showtime row in list responses. */
+export const showtimeListItemSchema = z.object({
+  id: z.string().uuid(),
+  startTime: z.string(),
+  endTime: z.string(),
+  priceCents: z.number(),
+  status: showtimeStatusSchema,
+  availableSeatCount: z.number(),
+});
+
+export type ShowtimeListItem = z.infer<typeof showtimeListItemSchema>;
+
+/** Upcoming showtime summary on movie detail. */
+export const upcomingShowtimeSchema = z.object({
+  id: z.string().uuid(),
+  startTime: z.string(),
+  endTime: z.string(),
+  priceCents: z.number(),
+  status: showtimeStatusSchema,
+});
+
+export type UpcomingShowtime = z.infer<typeof upcomingShowtimeSchema>;
+
+/** Query params for GET /movies/:id/showtimes. */
+export const showtimesByDateQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
+});
+
+export type ShowtimesByDateQuery = z.infer<typeof showtimesByDateQuerySchema>;
+
+/** Response shape for GET /movies/:id/showtimes. */
+export const showtimesListResponseSchema = z.object({
+  showtimes: z.array(showtimeListItemSchema),
+});
+
+export type ShowtimesListResponse = z.infer<typeof showtimesListResponseSchema>;
+
+/** Request body for POST /showtimes. */
+export const createShowtimeRequestSchema = z.object({
+  movieId: z.string().uuid(),
+  startTime: z.string().datetime(),
+  priceCents: z.number().int().min(0),
+});
+
+export type CreateShowtimeRequest = z.infer<typeof createShowtimeRequestSchema>;
+
+/** Request body for PUT /showtimes/:id. */
+export const updateShowtimeRequestSchema = z.object({
+  startTime: z.string().datetime().optional(),
+  priceCents: z.number().int().min(0).optional(),
+});
+
+export type UpdateShowtimeRequest = z.infer<typeof updateShowtimeRequestSchema>;
+
+/** Core showtime fields returned by admin mutations. */
+export const showtimeSchema = z.object({
+  id: z.string().uuid(),
+  movieId: z.string().uuid(),
+  screenId: z.number(),
+  startTime: z.string(),
+  endTime: z.string(),
+  priceCents: z.number(),
+  status: showtimeStatusSchema,
+});
+
+export type Showtime = z.infer<typeof showtimeSchema>;
+
+/** Response after creating or updating a showtime. */
+export const showtimeMutationResponseSchema = z.object({
+  showtime: showtimeSchema,
+});
+
+export type ShowtimeMutationResponse = z.infer<typeof showtimeMutationResponseSchema>;
+
 /** Response shape for GET /movies/:id. */
 export const movieDetailResponseSchema = z.object({
   movie: movieSchema,
   genres: z.array(genreSchema),
-  upcomingShowtimes: z.array(z.unknown()),
+  upcomingShowtimes: z.array(upcomingShowtimeSchema),
 });
 
 export type MovieDetailResponse = z.infer<typeof movieDetailResponseSchema>;
