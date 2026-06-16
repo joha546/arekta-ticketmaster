@@ -37,6 +37,7 @@ const envSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
   OTEL_SERVICE_NAME: z.string().default('api'),
   HOLD_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(600),
+  RESERVATION_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
 });
 
 export type Env = z.infer<typeof envSchema>;

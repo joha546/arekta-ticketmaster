@@ -322,3 +322,88 @@ export const holdStatusResponseSchema = z.object({
 });
 
 export type HoldStatusResponse = z.infer<typeof holdStatusResponseSchema>;
+
+export const reservationStatusSchema = z.enum(['pending', 'confirmed', 'expired', 'cancelled']);
+
+export type ReservationStatus = z.infer<typeof reservationStatusSchema>;
+
+/** Request body for POST /reservations. */
+export const createReservationRequestSchema = z.object({
+  holdToken: z.string().uuid(),
+});
+
+export type CreateReservationRequest = z.infer<typeof createReservationRequestSchema>;
+
+/** Seat label summary on reservation responses. */
+export const reservationSeatSchema = z.object({
+  label: z.string(),
+});
+
+export type ReservationSeat = z.infer<typeof reservationSeatSchema>;
+
+/** Reservation payload returned by create and detail endpoints. */
+export const reservationSchema = z.object({
+  id: z.string().uuid(),
+  referenceCode: z.string(),
+  status: reservationStatusSchema,
+  totalAmountCents: z.number().int().min(0),
+  currency: z.string().length(3),
+  expiresAt: z.string().nullable(),
+  showtimeId: z.string().uuid().optional(),
+  seats: z.array(reservationSeatSchema),
+});
+
+export type Reservation = z.infer<typeof reservationSchema>;
+
+/** Response shape for POST /reservations. */
+export const createReservationResponseSchema = z.object({
+  reservation: reservationSchema,
+  paymentUrl: z.null(),
+});
+
+export type CreateReservationResponse = z.infer<typeof createReservationResponseSchema>;
+
+/** Query params for GET /reservations. */
+export const reservationListQuerySchema = paginationSchema.extend({
+  status: reservationStatusSchema.optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  userId: z.string().uuid().optional(),
+  movieId: z.string().uuid().optional(),
+});
+
+export type ReservationListQuery = z.infer<typeof reservationListQuerySchema>;
+
+/** Summary row in GET /reservations list. */
+export const reservationListItemSchema = z.object({
+  id: z.string().uuid(),
+  referenceCode: z.string(),
+  status: reservationStatusSchema,
+  totalAmountCents: z.number().int().min(0),
+  currency: z.string().length(3),
+  expiresAt: z.string().nullable(),
+  showtimeId: z.string().uuid(),
+  createdAt: z.string(),
+});
+
+export type ReservationListItem = z.infer<typeof reservationListItemSchema>;
+
+export const reservationListResponseSchema = paginatedResponseSchema(reservationListItemSchema);
+
+export type ReservationListResponse = z.infer<typeof reservationListResponseSchema>;
+
+/** Response shape for GET /reservations/:id. */
+export const reservationDetailResponseSchema = z.object({
+  reservation: reservationSchema.extend({
+    showtimeId: z.string().uuid(),
+  }),
+});
+
+export type ReservationDetailResponse = z.infer<typeof reservationDetailResponseSchema>;
+
+/** Response shape for DELETE /reservations/:id. */
+export const cancelReservationResponseSchema = z.object({
+  success: z.literal(true),
+});
+
+export type CancelReservationResponse = z.infer<typeof cancelReservationResponseSchema>;
