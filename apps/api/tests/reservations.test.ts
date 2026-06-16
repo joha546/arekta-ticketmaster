@@ -13,6 +13,7 @@ import { queryRead, queryWrite } from '../src/db/pools.js';
 import { createLogger } from '../src/middleware/logger.js';
 import { REFERENCE_CODE_PATTERN } from '../src/reservations/referenceCode.js';
 import { createReservationsService } from '../src/reservations/service.js';
+import * as reservationsRepo from '../src/reservations/repository.js';
 import { signTestToken } from './helpers/jwt.js';
 import { resetMockRedisStore } from './setup.js';
 
@@ -23,6 +24,25 @@ const USER_ID = '22222222-2222-2222-2222-222222222222';
 const OTHER_USER_ID = '33333333-3333-3333-3333-333333333333';
 const ADMIN_USER_ID = '11111111-1111-1111-1111-111111111111';
 const UNVERIFIED_USER_ID = '44444444-4444-4444-4444-444444444444';
+
+const IDEM_PENDING = '11111111-1111-4111-8111-111111111101';
+const IDEM_PRICE = '11111111-1111-4111-8111-111111111102';
+const IDEM_REF = '11111111-1111-4111-8111-111111111103';
+const IDEM_REPLAY = '11111111-1111-4111-8111-111111111104';
+const IDEM_FIRST_KEY = '11111111-1111-4111-8111-111111111105';
+const IDEM_SECOND_KEY = '11111111-1111-4111-8111-111111111106';
+const IDEM_EXPIRED_HOLD = '11111111-1111-4111-8111-111111111107';
+const IDEM_WRONG_USER = '11111111-1111-4111-8111-111111111108';
+const IDEM_OWN_LIST = '11111111-1111-4111-8111-111111111109';
+const IDEM_OTHER_LIST = '11111111-1111-4111-8111-111111111110';
+const IDEM_ADMIN_LIST_1 = '11111111-1111-4111-8111-111111111111';
+const IDEM_ADMIN_LIST_2 = '11111111-1111-4111-8111-111111111112';
+const IDEM_DETAIL_LABELS = '11111111-1111-4111-8111-111111111113';
+const IDEM_DETAIL_FORBIDDEN = '11111111-1111-4111-8111-111111111114';
+const IDEM_CANCEL_UPCOMING = '11111111-1111-4111-8111-111111111115';
+const IDEM_PAST_CANCEL = '11111111-1111-4111-8111-111111111116';
+const IDEM_EXPIRE_JOB = '11111111-1111-4111-8111-111111111117';
+const IDEM_RACE_REPLAY = '11111111-1111-4111-8111-111111111118';
 
 const ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 const COLS = 12;
@@ -640,7 +660,7 @@ describe('Reservations API', () => {
     const res = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'test-001')
+      .set('X-Idempotency-Key', IDEM_PENDING)
       .send({ holdToken });
 
     expect(res.status).toBe(201);
@@ -655,7 +675,7 @@ describe('Reservations API', () => {
     const res = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'test-price')
+      .set('X-Idempotency-Key', IDEM_PRICE)
       .send({ holdToken });
 
     expect(res.status).toBe(201);
@@ -668,7 +688,7 @@ describe('Reservations API', () => {
     const res = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'test-ref')
+      .set('X-Idempotency-Key', IDEM_REF)
       .send({ holdToken });
 
     expect(res.status).toBe(201);
@@ -681,17 +701,18 @@ describe('Reservations API', () => {
     const first = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'test-replay')
+      .set('X-Idempotency-Key', IDEM_REPLAY)
       .send({ holdToken });
 
     const second = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'test-replay')
+      .set('X-Idempotency-Key', IDEM_REPLAY)
       .send({ holdToken });
 
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
+    expect(second.headers['idempotent-replayed']).toBe('true');
     expect(second.body.reservation.id).toBe(first.body.reservation.id);
   });
 
@@ -701,13 +722,13 @@ describe('Reservations API', () => {
     await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'first-key')
+      .set('X-Idempotency-Key', IDEM_FIRST_KEY)
       .send({ holdToken });
 
     const res = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'second-key')
+      .set('X-Idempotency-Key', IDEM_SECOND_KEY)
       .send({ holdToken });
 
     expect(res.status).toBe(409);
@@ -724,7 +745,7 @@ describe('Reservations API', () => {
     const res = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'expired-hold')
+      .set('X-Idempotency-Key', IDEM_EXPIRED_HOLD)
       .send({ holdToken });
 
     expect(res.status).toBe(409);
@@ -737,7 +758,7 @@ describe('Reservations API', () => {
     const res = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${otherUserToken}`)
-      .set('X-Idempotency-Key', 'wrong-user')
+      .set('X-Idempotency-Key', IDEM_WRONG_USER)
       .send({ holdToken });
 
     expect(res.status).toBe(403);
@@ -749,7 +770,7 @@ describe('Reservations API', () => {
     await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'own-list')
+      .set('X-Idempotency-Key', IDEM_OWN_LIST)
       .send({ holdToken });
 
     const otherHold = await request(app)
@@ -759,7 +780,7 @@ describe('Reservations API', () => {
     await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${otherUserToken}`)
-      .set('X-Idempotency-Key', 'other-list')
+      .set('X-Idempotency-Key', IDEM_OTHER_LIST)
       .send({ holdToken: otherHold.body.holdToken });
 
     const res = await request(app)
@@ -777,7 +798,7 @@ describe('Reservations API', () => {
     await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'admin-list-1')
+      .set('X-Idempotency-Key', IDEM_ADMIN_LIST_1)
       .send({ holdToken });
 
     const otherHold = await request(app)
@@ -787,7 +808,7 @@ describe('Reservations API', () => {
     await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${otherUserToken}`)
-      .set('X-Idempotency-Key', 'admin-list-2')
+      .set('X-Idempotency-Key', IDEM_ADMIN_LIST_2)
       .send({ holdToken: otherHold.body.holdToken });
 
     const res = await request(app)
@@ -803,7 +824,7 @@ describe('Reservations API', () => {
     const createRes = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'detail-labels')
+      .set('X-Idempotency-Key', IDEM_DETAIL_LABELS)
       .send({ holdToken });
 
     const res = await request(app)
@@ -820,7 +841,7 @@ describe('Reservations API', () => {
     const createRes = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'detail-forbidden')
+      .set('X-Idempotency-Key', IDEM_DETAIL_FORBIDDEN)
       .send({ holdToken });
 
     const res = await request(app)
@@ -836,7 +857,7 @@ describe('Reservations API', () => {
     const createRes = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'cancel-upcoming')
+      .set('X-Idempotency-Key', IDEM_CANCEL_UPCOMING)
       .send({ holdToken });
 
     const res = await request(app)
@@ -857,7 +878,7 @@ describe('Reservations API', () => {
     const createRes = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'past-cancel')
+      .set('X-Idempotency-Key', IDEM_PAST_CANCEL)
       .send({ holdToken: pastHold.body.holdToken });
 
     const res = await request(app)
@@ -873,7 +894,7 @@ describe('Reservations API', () => {
     const createRes = await request(app)
       .post('/reservations')
       .set('Authorization', `Bearer ${verifiedToken}`)
-      .set('X-Idempotency-Key', 'expire-job')
+      .set('X-Idempotency-Key', IDEM_EXPIRE_JOB)
       .send({ holdToken });
 
     const reservation = reservations.get(createRes.body.reservation.id);
@@ -897,5 +918,51 @@ describe('Reservations API', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('invalid idempotency key format → 400', async () => {
+    const holdToken = await holdSeats([21]);
+
+    const res = await request(app)
+      .post('/reservations')
+      .set('Authorization', `Bearer ${verifiedToken}`)
+      .set('X-Idempotency-Key', 'postman-test-001')
+      .send({ holdToken });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('HOLD_CONSUMED race with same idempotency key → replays instead of 409', async () => {
+    const holdToken = await holdSeats([22]);
+
+    await request(app)
+      .post('/reservations')
+      .set('Authorization', `Bearer ${verifiedToken}`)
+      .set('X-Idempotency-Key', IDEM_RACE_REPLAY)
+      .send({ holdToken });
+
+    const existing = await reservationsRepo.findByIdempotencyKeyFromPrimary(
+      USER_ID,
+      IDEM_RACE_REPLAY,
+    );
+    expect(existing).not.toBeNull();
+
+    vi.spyOn(reservationsRepo, 'findByIdempotencyKeyFromPrimary')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(existing);
+
+    const holdConsumed = Object.assign(new Error('hold consumed'), { code: 'P0005' });
+    vi.spyOn(reservationsRepo, 'callCreateReservation').mockRejectedValueOnce(holdConsumed);
+
+    const res = await request(app)
+      .post('/reservations')
+      .set('Authorization', `Bearer ${verifiedToken}`)
+      .set('X-Idempotency-Key', IDEM_RACE_REPLAY)
+      .send({ holdToken });
+
+    expect(res.status).toBe(201);
+    expect(res.headers['idempotent-replayed']).toBe('true');
+    expect(res.body.reservation.id).toBe(existing!.id);
   });
 });

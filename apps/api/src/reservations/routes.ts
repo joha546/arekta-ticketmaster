@@ -1,11 +1,17 @@
 import { Router, type Router as ExpressRouter } from 'express';
-import type { ReservationListQuery } from '@repo/shared';
+import type { IdempotencyKey, ReservationListQuery } from '@repo/shared';
 import type { Env } from '../config/env.js';
-import { AppError } from '../errors/AppError.js';
 import { createAuthMiddleware, type AuthRequest } from '../middleware/auth.js';
-import { validateBody, validateQuery, type ValidatedRequest } from '../middleware/validate.js';
+import {
+  validateBody,
+  validateHeader,
+  validateQuery,
+  type ValidatedHeadersRequest,
+  type ValidatedRequest,
+} from '../middleware/validate.js';
 import {
   createReservationRequestSchema,
+  idempotencyKeySchema,
   reservationListQuerySchema,
 } from './schemas.js';
 import { createReservationsService } from './service.js';
@@ -20,15 +26,7 @@ function reservationIdParam(id: string | string[] | undefined): string {
   return '';
 }
 
-function idempotencyKeyHeader(value: string | string[] | undefined): string | null {
-  if (typeof value === 'string' && value.trim().length > 0) {
-    return value.trim();
-  }
-  if (Array.isArray(value) && value[0]?.trim()) {
-    return value[0].trim();
-  }
-  return null;
-}
+type CreateReservationBody = { holdToken: string };
 
 /**
  * Mounts `/reservations/*` HTTP endpoints.
@@ -43,19 +41,25 @@ export function createReservationsRouter(env: Env): ExpressRouter {
     '/',
     requireAuth,
     requireVerifiedEmail,
+    validateHeader('X-Idempotency-Key', idempotencyKeySchema),
     validateBody(createReservationRequestSchema),
     async (req: AuthRequest, res, next) => {
       try {
-        const idempotencyKey = idempotencyKeyHeader(req.headers['x-idempotency-key']);
-        if (!idempotencyKey) {
-          throw new AppError('X-Idempotency-Key header is required', 400, 'VALIDATION_ERROR');
-        }
-
+        const idempotencyKey = (req as ValidatedHeadersRequest<IdempotencyKey>).validatedHeaders;
+        const body = req.body as CreateReservationBody;
         const result = await reservations.createReservation(req.user!.id, {
-          holdToken: req.body.holdToken,
+          holdToken: body.holdToken,
           idempotencyKey,
         });
-        res.status(201).json(result);
+
+        if (result.replayed) {
+          res.set('Idempotent-Replayed', 'true');
+        }
+
+        res.status(201).json({
+          reservation: result.reservation,
+          paymentUrl: result.paymentUrl,
+        });
       } catch (error) {
         next(error);
       }

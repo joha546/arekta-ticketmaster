@@ -62,17 +62,26 @@ export function createReservationsService(env: Env) {
     return toApiReservation(reservation, seats, options);
   }
 
+  async function tryReplayByIdempotencyKey(userId: string, idempotencyKey: string) {
+    const existing = await reservationsRepo.findByIdempotencyKeyFromPrimary(
+      userId,
+      idempotencyKey,
+    );
+    if (!existing) {
+      return null;
+    }
+
+    const reservation = await loadReservationWithSeats(existing.id, { fromPrimary: true });
+    return { reservation, paymentUrl: null, replayed: true };
+  }
+
   async function createReservation(
     userId: string,
     input: { holdToken: string; idempotencyKey: string },
   ) {
-    const existing = await reservationsRepo.findByIdempotencyKeyFromPrimary(
-      userId,
-      input.idempotencyKey,
-    );
-    if (existing) {
-      const reservation = await loadReservationWithSeats(existing.id, { fromPrimary: true });
-      return { reservation, paymentUrl: null };
+    const replay = await tryReplayByIdempotencyKey(userId, input.idempotencyKey);
+    if (replay) {
+      return replay;
     }
 
     const hold = await seatsRepo.findHoldById(input.holdToken);
@@ -99,8 +108,14 @@ export function createReservationsService(env: Env) {
       });
 
       const reservation = await loadReservationWithSeats(reservationId, { fromPrimary: true });
-      return { reservation, paymentUrl: null };
+      return { reservation, paymentUrl: null, replayed: false };
     } catch (error) {
+      if (reservationsRepo.isHoldConsumedError(error) || reservationsRepo.isIdempotencyConflictError(error)) {
+        const replayAfterRace = await tryReplayByIdempotencyKey(userId, input.idempotencyKey);
+        if (replayAfterRace) {
+          return replayAfterRace;
+        }
+      }
       if (reservationsRepo.isHoldExpiredError(error)) {
         throw new AppError('Hold has expired', 409, 'HOLD_EXPIRED');
       }

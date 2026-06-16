@@ -112,6 +112,26 @@ export function isNotCancellableError(error: unknown): boolean {
   return isPgError(error, NOT_CANCELLABLE_CODE);
 }
 
+const UNIQUE_VIOLATION_CODE = '23505';
+const IDEMPOTENCY_UNIQUE_CONSTRAINT = 'reservations_user_idempotency_unique';
+
+export function isIdempotencyConflictError(error: unknown): boolean {
+  if (!isPgError(error, UNIQUE_VIOLATION_CODE)) {
+    return false;
+  }
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'constraint' in error &&
+    typeof (error as { constraint?: string }).constraint === 'string'
+  ) {
+    return (error as { constraint: string }).constraint === IDEMPOTENCY_UNIQUE_CONSTRAINT;
+  }
+
+  return true;
+}
+
 export async function findByIdempotencyKey(
   userId: string,
   idempotencyKey: string,

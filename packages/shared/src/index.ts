@@ -334,6 +334,11 @@ export const createReservationRequestSchema = z.object({
 
 export type CreateReservationRequest = z.infer<typeof createReservationRequestSchema>;
 
+/** Header value for POST /reservations idempotency. */
+export const idempotencyKeySchema = z.string().uuid('X-Idempotency-Key must be a valid UUID');
+
+export type IdempotencyKey = z.infer<typeof idempotencyKeySchema>;
+
 /** Seat label summary on reservation responses. */
 export const reservationSeatSchema = z.object({
   label: z.string(),

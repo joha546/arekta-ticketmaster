@@ -43,7 +43,7 @@
     },
     {
       "key": "idempotencyKey",
-      "value": "postman-test-001",
+      "value": "00000000-0000-4000-8000-000000000001",
       "type": "string"
     },
     {
@@ -806,6 +806,18 @@
         {
           "name": "POST Create Reservation",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const current = pm.collectionVariables.get('idempotencyKey');",
+                  "if (!current) {",
+                  "  pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
             {
               "listen": "test",
               "script": {
