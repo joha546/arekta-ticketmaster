@@ -41,7 +41,7 @@ async function applyMigration(filename: string) {
 }
 
 async function migrate() {
-  const env = loadEnv();
+  const env = loadEnv({ requireJwt: false });
   initPools(env);
 
   await ensureMigrationsTable();

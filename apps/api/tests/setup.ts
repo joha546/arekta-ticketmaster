@@ -54,6 +54,37 @@ const mockRedis = {
     entry.expiresAt = Date.now() + ttl * 1000;
     return 1;
   }),
+  setnx: vi.fn(async (key: string, value: string) => {
+    purgeExpired(key);
+    const entry = redisStore.get(key);
+    if (entry && !isExpired(entry)) {
+      return 0;
+    }
+    redisStore.set(key, { value, expiresAt: null });
+    return 1;
+  }),
+  eval: vi.fn(async (_script: string, numKeys: number, ...args: string[]) => {
+    const keys = args.slice(0, numKeys);
+    const userId = args[numKeys];
+    const ttl = Number(args[numKeys + 1]);
+    for (const key of keys) {
+      purgeExpired(key);
+      const entry = redisStore.get(key);
+      if (entry && !isExpired(entry)) {
+        for (const priorKey of keys.slice(0, keys.indexOf(key))) {
+          redisStore.delete(priorKey);
+        }
+        return 0;
+      }
+    }
+    for (const key of keys) {
+      redisStore.set(key, {
+        value: userId ?? '',
+        expiresAt: Number.isFinite(ttl) ? Date.now() + ttl * 1000 : null,
+      });
+    }
+    return 1;
+  }),
   quit: vi.fn().mockResolvedValue('OK'),
 };
 

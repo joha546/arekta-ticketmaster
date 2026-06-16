@@ -227,6 +227,10 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+    volumes:
+      # PEM files are gitignored; mount from repo root for RS256 auth in Docker.
+      - ./private.pem:/app/private.pem:ro
+      - ./public.pem:/app/public.pem:ro
     ports:
       - "3000:3000"
     networks:

@@ -253,3 +253,72 @@ export const posterUploadResponseSchema = z.object({
 });
 
 export type PosterUploadResponse = z.infer<typeof posterUploadResponseSchema>;
+
+export const seatStatusSchema = z.enum(['available', 'held', 'reserved']);
+
+export type SeatStatus = z.infer<typeof seatStatusSchema>;
+
+/** Single cell in the seat map grid. */
+export const seatMapCellSchema = z.object({
+  seatId: z.number().int().positive(),
+  label: z.string(),
+  status: seatStatusSchema,
+});
+
+export type SeatMapCell = z.infer<typeof seatMapCellSchema>;
+
+/** Response shape for GET /showtimes/:id/seats. */
+export const seatMapResponseSchema = z.object({
+  showtimeId: z.string().uuid(),
+  priceCents: z.number().int().min(0),
+  rows: z.number().int().positive(),
+  cols: z.number().int().positive(),
+  seats: z.array(z.array(seatMapCellSchema)),
+});
+
+export type SeatMapResponse = z.infer<typeof seatMapResponseSchema>;
+
+/** Request body for POST /seats/hold. */
+export const holdSeatsRequestSchema = z.object({
+  showtimeId: z.string().uuid(),
+  seatIds: z
+    .array(z.number().int().positive())
+    .min(1, 'At least one seat is required')
+    .max(10, 'Cannot hold more than 10 seats'),
+});
+
+export type HoldSeatsRequest = z.infer<typeof holdSeatsRequestSchema>;
+
+/** Request body for DELETE /seats/hold. */
+export const releaseHoldRequestSchema = z.object({
+  holdToken: z.string().uuid(),
+});
+
+export type ReleaseHoldRequest = z.infer<typeof releaseHoldRequestSchema>;
+
+/** Held seat summary returned by hold endpoints. */
+export const heldSeatSchema = z.object({
+  seatId: z.number().int().positive(),
+  label: z.string(),
+});
+
+export type HeldSeat = z.infer<typeof heldSeatSchema>;
+
+/** Response shape for POST /seats/hold. */
+export const holdSeatsResponseSchema = z.object({
+  holdToken: z.string().uuid(),
+  expiresAt: z.string(),
+  seats: z.array(heldSeatSchema),
+});
+
+export type HoldSeatsResponse = z.infer<typeof holdSeatsResponseSchema>;
+
+/** Response shape for GET /seats/hold/:holdToken. */
+export const holdStatusResponseSchema = z.object({
+  holdToken: z.string().uuid(),
+  showtimeId: z.string().uuid(),
+  expiresAt: z.string(),
+  seats: z.array(heldSeatSchema),
+});
+
+export type HoldStatusResponse = z.infer<typeof holdStatusResponseSchema>;

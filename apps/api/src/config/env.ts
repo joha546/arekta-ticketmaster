@@ -36,15 +36,33 @@ const envSchema = z.object({
   IMGBB_API_KEY: z.string().default(''),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4317'),
   OTEL_SERVICE_NAME: z.string().default('api'),
+  HOLD_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(600),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
-export function loadEnv(): Env {
+export function loadEnv(options?: { requireJwt?: boolean }): Env {
   const parsed = envSchema.parse(process.env);
-  return {
+  const env = {
     ...parsed,
     JWT_PUBLIC_KEY: resolvePemValue(parsed.JWT_PUBLIC_KEY),
     JWT_PRIVATE_KEY: resolvePemValue(parsed.JWT_PRIVATE_KEY),
   };
+
+  if (options?.requireJwt === false) {
+    return env;
+  }
+
+  if (!env.JWT_PRIVATE_KEY.includes('-----BEGIN')) {
+    throw new Error(
+      'JWT_PRIVATE_KEY is not a valid PEM. For Docker, ensure private.pem exists at the repo root and is mounted (see docker-compose.yml).',
+    );
+  }
+  if (!env.JWT_PUBLIC_KEY.includes('-----BEGIN')) {
+    throw new Error(
+      'JWT_PUBLIC_KEY is not a valid PEM. For Docker, ensure public.pem exists at the repo root and is mounted (see docker-compose.yml).',
+    );
+  }
+
+  return env;
 }

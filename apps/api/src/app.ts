@@ -40,7 +40,7 @@ export function createApp(env: Env, logger: pino.Logger): Express {
   app.use('/genres', createGenresRouter());
   app.use('/movies', createMoviesRouter(env));
   app.use('/showtimes', createShowtimesRouter(env));
-  app.use('/seats', createSeatsRouter());
+  app.use('/seats', createSeatsRouter(env));
   app.use('/reservations', createReservationsRouter());
   app.use('/payments', createPaymentsRouter());
   app.use('/admin', createAdminRouter(env));

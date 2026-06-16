@@ -7,6 +7,7 @@ import { createLogger } from './middleware/logger.js';
 import { createApp } from './app.js';
 import { closeRedis } from './redis/client.js';
 import { startShowtimeCompletionScheduler } from './showtimes/scheduler.js';
+import { startHoldExpiryJob } from './seats/holdJob.js';
 
 loadDotenv();
 initInstrumentation();
@@ -18,6 +19,7 @@ initPools(env);
 const app: Express = createApp(env, logger);
 
 startShowtimeCompletionScheduler();
+startHoldExpiryJob(env);
 
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT }, 'API server started');

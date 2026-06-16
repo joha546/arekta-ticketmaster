@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { Env } from '../config/env.js';
+import { findById } from '../auth/repository.js';
 import { verifyAccessToken as verifyToken } from '../auth/jwt.js';
 import { AppError } from '../errors/AppError.js';
 
@@ -68,5 +69,24 @@ export function createAuthMiddleware(env: Env) {
     next();
   }
 
-  return { requireAuth, requireAdmin, optionalAuth };
+  async function requireVerifiedEmail(req: AuthRequest, _res: Response, next: NextFunction) {
+    if (!req.user) {
+      return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
+    }
+
+    try {
+      const user = await findById(req.user.id);
+      if (!user) {
+        return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
+      }
+      if (!user.emailVerified) {
+        return next(new AppError('Email verification required', 403, 'FORBIDDEN'));
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  return { requireAuth, requireAdmin, optionalAuth, requireVerifiedEmail };
 }

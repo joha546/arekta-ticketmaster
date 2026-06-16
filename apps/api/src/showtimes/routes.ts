@@ -4,6 +4,7 @@ import { createAuthMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { createShowtimeRequestSchema, updateShowtimeRequestSchema } from './schemas.js';
 import { createShowtimesService } from './service.js';
+import { registerSeatMapRoute } from '../seats/routes.js';
 
 function showtimeIdParam(id: string | string[] | undefined): string {
   if (typeof id === 'string') {
@@ -23,6 +24,8 @@ export function createShowtimesRouter(env: Env): ExpressRouter {
   const router = Router();
   const showtimes = createShowtimesService();
   const { requireAuth, requireAdmin } = createAuthMiddleware(env);
+
+  registerSeatMapRoute(router, env);
 
   /** POST /showtimes — admin-only create with implicit screen_id=1. */
   router.post(
