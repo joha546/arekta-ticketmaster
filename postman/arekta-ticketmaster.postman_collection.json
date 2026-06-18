@@ -60,6 +60,16 @@
       "key": "showtimeStartGap",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "paymentUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refundId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -826,7 +836,20 @@
                   "  const json = pm.response.json();",
                   "  const id = json.reservation?.id;",
                   "  if (id) pm.collectionVariables.set('reservationId', id);",
-                  "}"
+                  "  if (json.paymentUrl) {",
+                  "    pm.collectionVariables.set('paymentUrl', json.paymentUrl);",
+                  "    console.log('Stripe checkout — open in browser:', json.paymentUrl);",
+                  "  }",
+                  "}",
+                  "pm.test('reservation created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.reservation.status).to.eql('pending');",
+                  "});",
+                  "pm.test('paymentUrl returned', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.paymentUrl).to.be.a('string').and.not.empty;",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -847,7 +870,8 @@
               "raw": "{{baseUrl}}/reservations",
               "host": ["{{baseUrl}}"],
               "path": ["reservations"]
-            }
+            },
+            "description": "Phase 06/07 — creates pending reservation and Stripe Checkout `paymentUrl`.\n\nPrerequisites: run **05 Seats & Holds → POST Hold Seats** first.\n\nSaves `reservationId` and `paymentUrl` to collection variables. Continue in **07 Payments** folder."
           },
           "response": []
         },
@@ -900,10 +924,26 @@
     },
     {
       "name": "07 Payments",
-      "description": "Phase 07 — use Stripe CLI for webhooks",
+      "description": "Phase 07 — Stripe Checkout + webhooks.\n\n## Prerequisites\n1. `.env` has `STRIPE_SECRET_KEY` (Dashboard → Developers → API keys, test mode).\n2. Terminal: `stripe listen --forward-to localhost:3000/webhooks/stripe`\n3. Copy CLI `whsec_...` into `.env` as `STRIPE_WEBHOOK_SECRET`, restart API.\n\n## E2E flow (in order)\n1. **01 Auth** — login as verified user\n2. **04 Showtimes** — pick a showtime (`showtimeId`)\n3. **05 Seats & Holds** — POST Hold Seats\n4. **06 Reservations** — POST Create Reservation → copies `paymentUrl`\n5. Open `{{paymentUrl}}` in a browser; pay with test card `4242 4242 4242 4242` (any future expiry, any CVC)\n6. Wait for webhook (Stripe CLI terminal shows `checkout.session.completed`)\n7. **GET Payment Status (after pay)** → `paymentStatus: completed`\n8. **GET Reservation Detail (confirmed)** → `status: confirmed`\n9. **DELETE Cancel Paid Reservation** → `refundId` present\n\nDecline test card: `4000 0000 0000 0002`",
       "item": [
         {
-          "name": "GET Payment Status",
+          "name": "1. GET Payment Status (pending)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('payment pending before checkout', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('pending');",
+                  "  pm.expect(json.paymentStatus).to.eql('pending');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -913,7 +953,158 @@
               "raw": "{{baseUrl}}/reservations/{{reservationId}}/payment-status",
               "host": ["{{baseUrl}}"],
               "path": ["reservations", "{{reservationId}}", "payment-status"]
+            },
+            "description": "Run **before** opening `{{paymentUrl}}` in the browser. Expects `paymentStatus: pending`."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Open Checkout (manual)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paymentUrl}}",
+              "host": ["{{paymentUrl}}"]
+            },
+            "description": "Not an API call — open `{{paymentUrl}}` in your browser (or click **Send** if Postman follows redirects).\n\nTest card: `4242 4242 4242 4242`, any future expiry, any CVC.\n\nEnsure `stripe listen --forward-to localhost:3000/webhooks/stripe` is running so the webhook confirms the reservation."
+          },
+          "response": []
+        },
+        {
+          "name": "3. GET Payment Status (after pay)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('payment completed after webhook', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('confirmed');",
+                  "  pm.expect(json.paymentStatus).to.eql('completed');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
             }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}/payment-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "{{reservationId}}", "payment-status"]
+            },
+            "description": "Run **after** completing Stripe Checkout and receiving the webhook in Stripe CLI."
+          },
+          "response": []
+        },
+        {
+          "name": "4. GET Reservation Detail (confirmed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('reservation confirmed', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.reservation.status).to.eql('confirmed');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "{{reservationId}}"]
+            },
+            "description": "Verify seats are reserved and reservation status is `confirmed`."
+          },
+          "response": []
+        },
+        {
+          "name": "5. DELETE Cancel Paid Reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('refund issued', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "  pm.expect(json.refundId).to.be.a('string').and.not.empty;",
+                  "  if (json.refundId) pm.collectionVariables.set('refundId', json.refundId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "{{reservationId}}"]
+            },
+            "description": "Cancels a **paid + confirmed** reservation. Expects `refundId` (Stripe `re_...`). Saves `refundId` to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "6. DELETE Cancel Unpaid (no refund)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no refund for unpaid cancel', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "  pm.expect(json.refundId).to.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reservations", "{{reservationId}}"]
+            },
+            "description": "Use on a **pending, unpaid** reservation (create a new hold + reservation, then cancel without paying). Expects `success: true` with no `refundId`.\n\nTip: run **05 Hold** → **06 Create** → this request (skip opening `paymentUrl`)."
           },
           "response": []
         }

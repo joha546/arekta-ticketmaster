@@ -15,7 +15,7 @@ import { REFERENCE_CODE_PATTERN } from '../src/reservations/referenceCode.js';
 import { createReservationsService } from '../src/reservations/service.js';
 import * as reservationsRepo from '../src/reservations/repository.js';
 import { signTestToken } from './helpers/jwt.js';
-import { resetMockRedisStore } from './setup.js';
+import { resetMockRedisStore, mockStripeCheckoutCreate } from './setup.js';
 
 const SHOWTIME_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const PAST_SHOWTIME_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
@@ -106,12 +106,28 @@ type UserRow = {
   role: 'admin' | 'user';
 };
 
+type PaymentRow = {
+  id: string;
+  reservation_id: string;
+  provider: string;
+  provider_payment_intent_id: string | null;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  amount_cents: number;
+  currency: string;
+  gateway_response: Record<string, unknown>;
+  provider_refund_id: string | null;
+  refunded_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 const showtimes = new Map<string, ShowtimeRow>();
 const screenSeats = new Map<number, SeatDefinition>();
 const showtimeSeats = new Map<string, ShowtimeSeatState[]>();
 const holds = new Map<string, HoldRow>();
 const reservations = new Map<string, ReservationRow>();
 const reservationSeatLinks = new Map<string, number[]>();
+const payments = new Map<string, PaymentRow>();
 const users = new Map<string, UserRow>();
 
 let nextShowtimeSeatId = 1;
@@ -549,6 +565,12 @@ function installDbMocks(): void {
       };
     }
 
+      if (sql.includes('FROM payments') && sql.includes('WHERE reservation_id = $1')) {
+      const reservationId = params?.[0] as string;
+      const row = payments.get(reservationId);
+      return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+    }
+
     if (sql.includes('FROM reservations') || sql.includes('FROM reservation_seats')) {
       const rows = reservationRowsForQuery(sql, params).map((row) =>
         'reference_code' in row
@@ -584,6 +606,49 @@ function installDbMocks(): void {
   };
 
   const handleWrite = async (sql: string, params?: unknown[]) => {
+    if (sql.includes('INSERT INTO payments')) {
+      const reservationId = params?.[0] as string;
+      const row: PaymentRow = {
+        id: randomUUID(),
+        reservation_id: reservationId,
+        provider: 'stripe',
+        provider_payment_intent_id: null,
+        status: 'pending',
+        amount_cents: params?.[1] as number,
+        currency: params?.[2] as string,
+        gateway_response: JSON.parse((params?.[3] as string) ?? '{}'),
+        provider_refund_id: null,
+        refunded_at: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+      payments.set(reservationId, row);
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.includes('gateway_response = gateway_response ||')) {
+      const reservationId = params?.[0] as string;
+      const patch = JSON.parse((params?.[1] as string) ?? '{}');
+      const row = payments.get(reservationId);
+      if (row) {
+        row.gateway_response = { ...row.gateway_response, ...patch };
+        row.updated_at = new Date();
+      }
+      return { rows: [], rowCount: 0 };
+    }
+
+    if (sql.includes('UPDATE payments') && sql.includes("status = 'refunded'")) {
+      const reservationId = params?.[0] as string;
+      const row = payments.get(reservationId);
+      if (row) {
+        row.status = 'refunded';
+        row.provider_refund_id = params?.[1] as string;
+        row.refunded_at = new Date();
+        row.updated_at = new Date();
+      }
+      return { rows: [], rowCount: 0 };
+    }
+
     if (sql.includes('fn_hold_seats')) {
       simulateHoldSeats(
         params?.[0] as string,
@@ -644,7 +709,13 @@ describe('Reservations API', () => {
     holds.clear();
     reservations.clear();
     reservationSeatLinks.clear();
+    payments.clear();
     users.clear();
+    mockStripeCheckoutCreate.mockResolvedValue({
+      id: 'cs_test_default',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_default',
+      payment_intent: 'pi_test_default',
+    });
     nextShowtimeSeatId = 1;
     resetMockRedisStore();
     installDbMocks();
@@ -666,7 +737,7 @@ describe('Reservations API', () => {
     expect(res.status).toBe(201);
     const parsed = createReservationResponseSchema.parse(res.body);
     expect(parsed.reservation.status).toBe('pending');
-    expect(parsed.paymentUrl).toBeNull();
+    expect(parsed.paymentUrl).toBe('https://checkout.stripe.com/c/pay/cs_test_default');
   });
 
   it('totalAmountCents = seat_count × showtime.price_cents', async () => {

@@ -1,6 +1,32 @@
 import { vi } from 'vitest';
 import './helpers/jwt.js';
 
+export const mockStripeCheckoutCreate = vi.fn().mockResolvedValue({
+  id: 'cs_test_default',
+  url: 'https://checkout.stripe.com/c/pay/cs_test_default',
+  payment_intent: 'pi_test_default',
+});
+
+export const mockStripeRefundsCreate = vi.fn().mockResolvedValue({ id: 're_test_default' });
+
+export const mockStripeConstructEvent = vi.fn();
+
+vi.mock('../src/payments/stripe.js', () => ({
+  createStripeClient: vi.fn(() => ({
+    checkout: {
+      sessions: {
+        create: mockStripeCheckoutCreate,
+      },
+    },
+    webhooks: {
+      constructEvent: mockStripeConstructEvent,
+    },
+    refunds: {
+      create: mockStripeRefundsCreate,
+    },
+  })),
+}));
+
 type RedisEntry = {
   value: string;
   expiresAt: number | null;

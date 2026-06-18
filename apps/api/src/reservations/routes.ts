@@ -12,6 +12,7 @@ import {
 import {
   createReservationRequestSchema,
   idempotencyKeySchema,
+  paymentStatusResponseSchema,
   reservationListQuerySchema,
 } from './schemas.js';
 import { createReservationsService } from './service.js';
@@ -89,6 +90,19 @@ export function createReservationsRouter(env: Env): ExpressRouter {
       }
     },
   );
+
+  /** GET /reservations/:id/payment-status — reservation + payment status (primary read). */
+  router.get('/:id/payment-status', requireAuth, async (req: AuthRequest, res, next) => {
+    try {
+      const result = await reservations.getPaymentStatus(
+        req.user!,
+        reservationIdParam(req.params.id),
+      );
+      res.json(paymentStatusResponseSchema.parse(result));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   /** GET /reservations/:id — reservation detail with seat labels. */
   router.get('/:id', requireAuth, async (req: AuthRequest, res, next) => {

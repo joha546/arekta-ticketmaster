@@ -7,7 +7,7 @@ import { createAuthRouter } from './auth/routes.js';
 import type { Env } from './config/env.js';
 import { createGenresRouter } from './genres/routes.js';
 import { createMoviesRouter } from './movies/routes.js';
-import { createPaymentsRouter } from './payments/routes.js';
+import { createStripeWebhookRouter } from './payments/routes.js';
 import { createReservationsRouter } from './reservations/routes.js';
 import { createSeatsRouter } from './seats/routes.js';
 import { createShowtimesRouter } from './showtimes/routes.js';
@@ -24,6 +24,13 @@ export function createApp(env: Env, logger: pino.Logger): Express {
 
   app.disable('x-powered-by');
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+
+  app.use(
+    '/webhooks/stripe',
+    express.raw({ type: 'application/json' }),
+    createStripeWebhookRouter(env, logger),
+  );
+
   app.use(express.json());
   app.use(cookieParser());
   app.use(requestId());
@@ -42,7 +49,6 @@ export function createApp(env: Env, logger: pino.Logger): Express {
   app.use('/showtimes', createShowtimesRouter(env));
   app.use('/seats', createSeatsRouter(env));
   app.use('/reservations', createReservationsRouter(env));
-  app.use('/payments', createPaymentsRouter());
   app.use('/admin', createAdminRouter(env));
 
   if (env.NODE_ENV !== 'production') {

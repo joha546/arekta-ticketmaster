@@ -363,7 +363,7 @@ export type Reservation = z.infer<typeof reservationSchema>;
 /** Response shape for POST /reservations. */
 export const createReservationResponseSchema = z.object({
   reservation: reservationSchema,
-  paymentUrl: z.null(),
+  paymentUrl: z.string().url().nullable(),
 });
 
 export type CreateReservationResponse = z.infer<typeof createReservationResponseSchema>;
@@ -409,6 +409,19 @@ export type ReservationDetailResponse = z.infer<typeof reservationDetailResponse
 /** Response shape for DELETE /reservations/:id. */
 export const cancelReservationResponseSchema = z.object({
   success: z.literal(true),
+  refundId: z.string().optional(),
 });
 
 export type CancelReservationResponse = z.infer<typeof cancelReservationResponseSchema>;
+
+export const paymentStatusSchema = z.enum(['pending', 'completed', 'failed', 'refunded']);
+
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+
+/** Response shape for GET /reservations/:id/payment-status. */
+export const paymentStatusResponseSchema = z.object({
+  status: reservationStatusSchema,
+  paymentStatus: paymentStatusSchema,
+});
+
+export type PaymentStatusResponse = z.infer<typeof paymentStatusResponseSchema>;

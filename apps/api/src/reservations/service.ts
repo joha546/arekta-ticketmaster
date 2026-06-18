@@ -1,5 +1,8 @@
 import type { Env } from '../config/env.js';
+import { eventBus } from '../events/bus.js';
 import { AppError } from '../errors/AppError.js';
+import { createPaymentsService } from '../payments/service.js';
+import * as paymentsRepo from '../payments/repository.js';
 import * as seatsRepo from '../seats/repository.js';
 import * as redisHold from '../seats/redisHold.js';
 import { generateReferenceCode } from './referenceCode.js';
@@ -45,6 +48,7 @@ function toApiListItem(reservation: ReservationRecord) {
  * Business logic for reservations: create from holds, list, detail, cancel, expiry.
  */
 export function createReservationsService(env: Env) {
+  const paymentsService = createPaymentsService(env);
   async function loadReservationWithSeats(
     reservationId: string,
     options?: { includeShowtimeId?: boolean; fromPrimary?: boolean },
@@ -107,8 +111,14 @@ export function createReservationsService(env: Env) {
         expiresAt,
       });
 
+      const reservationRecord = await reservationsRepo.findByIdFromPrimary(reservationId);
+      if (!reservationRecord) {
+        throw new AppError('Reservation not found', 404, 'NOT_FOUND');
+      }
+
       const reservation = await loadReservationWithSeats(reservationId, { fromPrimary: true });
-      return { reservation, paymentUrl: null, replayed: false };
+      const paymentUrl = await paymentsService.createCheckout(reservationRecord);
+      return { reservation, paymentUrl, replayed: false };
     } catch (error) {
       if (reservationsRepo.isHoldConsumedError(error) || reservationsRepo.isIdempotencyConflictError(error)) {
         const replayAfterRace = await tryReplayByIdempotencyKey(userId, input.idempotencyKey);
@@ -181,13 +191,23 @@ export function createReservationsService(env: Env) {
   }
 
   async function cancelReservation(userId: string, reservationId: string) {
+    const payment = await paymentsRepo.findByReservationIdFromPrimary(reservationId);
+
+    let refundId: string | undefined;
+    if (payment?.status === 'completed') {
+      refundId = await paymentsService.refundPayment(payment);
+    }
+
     try {
       const seatIds = await reservationsRepo.callCancelReservation(reservationId, userId);
       const reservation = await reservationsRepo.findById(reservationId);
       if (reservation && seatIds.length > 0) {
         await redisHold.releaseSeats(reservation.showtimeId, seatIds);
       }
-      return { success: true as const };
+
+      eventBus.emit('reservation.cancelled', { reservationId, userId });
+
+      return { success: true as const, refundId };
     } catch (error) {
       if (reservationsRepo.isReservationNotFoundError(error)) {
         throw new AppError('Reservation not found', 404, 'NOT_FOUND');
@@ -216,10 +236,31 @@ export function createReservationsService(env: Env) {
     return expired;
   }
 
+  async function getPaymentStatus(
+    user: { id: string; role: 'admin' | 'user' },
+    reservationId: string,
+  ) {
+    const reservation = await reservationsRepo.findByIdFromPrimary(reservationId);
+    if (!reservation) {
+      throw new AppError('Reservation not found', 404, 'NOT_FOUND');
+    }
+    if (reservation.userId !== user.id && user.role !== 'admin') {
+      throw new AppError('Access denied', 403, 'FORBIDDEN');
+    }
+
+    const status = await paymentsService.getPaymentStatus(reservationId);
+    if (!status) {
+      throw new AppError('Reservation not found', 404, 'NOT_FOUND');
+    }
+
+    return status;
+  }
+
   return {
     createReservation,
     listReservations,
     getReservation,
+    getPaymentStatus,
     cancelReservation,
     expireStaleReservations,
   };
