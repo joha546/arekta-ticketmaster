@@ -52,14 +52,16 @@ export function createApp(env: Env, logger: pino.Logger): Express {
   app.use('/admin', createAdminRouter(env));
 
   if (env.NODE_ENV !== 'production') {
+    loggerMiddleware(logger);
     const debugRouter = Router();
+    app.use('/debug', debugRouter);
     debugRouter.get('/protected', requireAuth, (req: AuthRequest, res) => {
       res.json({ status: 'ok', userId: req.user?.id });
     });
     debugRouter.get('/admin', requireAuth, requireAdmin, (_req, res) => {
       res.json({ status: 'ok', role: 'admin' });
     });
-    app.use('/debug', debugRouter);
+    
   }
 
   app.use(notFoundHandler());

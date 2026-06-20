@@ -70,6 +70,17 @@ export async function createUser(input: {
   return mapUser(result.rows[0]);
 }
 
+/** get all users from the database */
+export async function getAllUsers(): Promise<AuthUserRecord[]> {
+  const result = await queryRead<UserRow>(
+    `SELECT id, email, password_hash, name, role, email_verified_at, google_id
+     FROM users`,
+  );
+
+  return result.rows.map(mapUser);
+}
+
+
 /** Loads a user by email for login and signup duplicate checks. */
 export async function findByEmail(email: string): Promise<(UserRow & { passwordHash: string | null }) | null> {
   const result = await queryRead<UserRow>(
